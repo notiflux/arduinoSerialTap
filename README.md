@@ -1,5 +1,5 @@
 # Arduino Serial Tap
-A serial tap that allows you to read and inject data into serial communication between two devices.
+A serial tap that allows reading and data injection into a serial connection between two devices.
 
 This software was written for the Arduino Mega 2560, but it could probably work on an Arduino Uno or other devices programmable through the Arduino IDE 
 too by utilising software serial. This is not currently implemented though since software serial might not be fast enough to ensure 
