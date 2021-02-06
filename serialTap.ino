@@ -132,10 +132,22 @@ void help () {
   s[0]->print ("        1 (Hello, World!)\n");
   s[0]->print ("        2 (printf (\"Hello, robot!\\n\"))\n");
   s[0]->print ("\n\n");
+  s[0]->print ("m (MODE)   -   switch between inject and realtime mode\n");
+  s[0]->print ("    change the operating mode of the serial tap.\n");
+  s[0]->print ("    in inject mode, all serial data is relayed between the two serial\n");
+  s[0]->print ("    devices by the arduino. this allows you to inject data into the communication.\n");
+  s[0]->print ("\n");
+  s[0]->print ("    in realtime mode (the default), both participants have a direct electrical connection to each other.\n");
+  s[0]->print ("    this is useful for communication where timing is critical. injection is not possible\n");
+  s[0]->print ("    in this mode.\n");
+  s[0]->print ("\n");
+  s[0]->print ("    MODE can be either inject or realtime\n");
+  s[0]->print ("        if no mode or an invalid mode is supplied, it will simply print the current mode.\n");
+  s[0]->print ("\n\n");
   s[0]->print ("h ()   -   display this help message\n");
   s[0]->print ("\n\n");
   s[0]->print ("debug ()   -   toggle debug mode\n");
-  s[0]->print ("    toggles echo of commands received\n");
+  s[0]->print ("    toggle echo of commands received\n");
   s[0]->print ("\n\n");
   s[0]->print ("reset ()   -   reset arduino\n");
   s[0]->print ("    this can be useful when you don't have access to the physical reset button\n");
@@ -188,6 +200,37 @@ void softReset () {
   while (1);
 }
 
+void modeSwitch (const char arg[]) {
+  if (strstr (arg, "inject") == &arg[3]) {
+    if (injectMode) {
+      s[0]->print ("device is already in inject mode\n");
+    }
+    else {
+      digitalWrite (2, HIGH);
+      injectMode = true;
+      s[0]->print ("device is now in inject mode\n");
+    }
+  }
+  else if (strstr (arg, "realtime") == &arg[3]) {
+    if (!injectMode) {
+      s[0]->print ("device is already in realtime mode\n");
+    }
+    else {
+      digitalWrite (2, LOW);
+      injectMode = false;
+      s[0]->print ("device is now in realtime mode\n");
+    }
+  }
+  else {
+    if (injectMode) {
+      s[0]->print ("device is currently in inject mode\n");
+    }
+    else {
+      s[0]->print ("device is currently in realtime mode\n");
+    }
+  }
+}
+
 void setup () {
   int trapState = 1;
 
@@ -199,7 +242,7 @@ void setup () {
   // we start the arduino in inject mode
   //
   pinMode (2, OUTPUT);
-  digitalWrite (2, HIGH);
+  digitalWrite (2, LOW);
   //
   // make sure we stay in setup until a configuration is set.
   // calling h () should not trigger a jump to loop ().
@@ -342,12 +385,7 @@ void loop () {
       while (s[0]->available () > 0) {
         s[0]->read ();
       }
-      //
-      // after printing a command output to the console, we definitely want
-      // to print the sender index again
-      //
-      firstMessage = true;
-      
+
       if (flagged) {
         s[0]->print ("buffer overflow. the command size limit is 2048 bytes\n");
       }
@@ -360,8 +398,15 @@ void loop () {
     if (debug) {
       s[0]->print ("received command: ");
       s[0]->print (arg);
+      s[0]->println ();
     }
     if (!flagged) {
+      //
+      // after printing a command output to the console, we definitely want
+      // to print the sender index again
+      //
+      firstMessage = true;
+
       if (strstr (arg, "h ()") == &arg[0]) {
         help ();
       }
@@ -372,18 +417,30 @@ void loop () {
         configurePorts (arg, i);
       }
       else if (strstr (arg, "1 (") == &arg[0]) {
-        memcpy (send, arg + 3, i - 4);
-        s[0]->print ("sending to device 1: ");
-        s[0]->print (send);
-        s[1]->write (send);
-        s[0]->println ();
+        if (!injectMode) {
+          s[0]->print ("device is in realtime mode. data injection is not possible.\n");
+          s[0]->print ("to change the mode to inject mode, type m (inject).\n");
+        }
+        else {
+          memcpy (send, arg + 3, i - 4);
+          s[0]->print ("sending to device 1: ");
+          s[0]->print (send);
+          s[1]->write (send);
+          s[0]->println ();
+        }
       }
       else if (strstr (arg, "2 (") == &arg[0]) {
-        memcpy (send, arg + 3, i - 4);
-        s[0]->print ("sending to device 2: ");
-        s[0]->print (send);
-        s[2]->write (send);
-        s[0]->println ();
+        if (!injectMode) {
+          s[0]->print ("device is in realtime mode. data injection is not possible.\n");
+          s[0]->print ("to change the mode to inject mode, type m (inject).\n");
+        }
+        else {
+          memcpy (send, arg + 3, i - 4);
+          s[0]->print ("sending to device 2: ");
+          s[0]->print (send);
+          s[2]->write (send);
+          s[0]->println ();
+        }
       }
       else if (strstr (arg, "debug ()") == &arg[0]) {
         if (!debug) {
@@ -397,6 +454,9 @@ void loop () {
       }
       else if (strstr (arg, "reset ()") == &arg[0]) {
         softReset ();
+      }
+      else if (strstr (arg, "m (") == &arg[0]) {
+        modeSwitch (arg);
       }
       else {
         s[0]->print ("invalid command\n");
@@ -414,7 +474,7 @@ void loop () {
       secondDevice = false;
       s[0]->print ("\n1: ");
     }
-    if (firstMessage) {
+    else if (firstMessage) {
       firstMessage = false;
       s[0]->print ("\n1: ");
     }
@@ -431,6 +491,17 @@ void loop () {
 
     if (!secondDevice) {
       secondDevice = true;
+      //
+      // secondDevice is false by default, so if device 2 is the first one
+      // to send data, it will print "\n2: " before the first and before
+      // the second character, so we need to make sure firstMessage is 
+      // false when we print the indicator the first time.
+      //
+      firstMessage = false;
+      s[0]->print ("\n2: ");
+    }
+    else if (firstMessage) {
+      firstMessage = false;
       s[0]->print ("\n2: ");
     }
 
