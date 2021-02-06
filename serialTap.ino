@@ -195,12 +195,15 @@ void setup () {
   s[0]->print ("--- ARDUINO MEGA SERIAL TAP ---\n");
   s[0]->print ("to configure, type \"c (BAUDRATE, CONFIGURATION)\"\n");
   s[0]->print ("for a list of available commands and further explanation, type \"h ()\"\n");
-
+  //
+  // we start the arduino in inject mode
+  //
+  pinMode (2, OUTPUT);
+  digitalWrite (2, HIGH);
   //
   // make sure we stay in setup until a configuration is set.
   // calling h () should not trigger a jump to loop ().
   //
-  
   while (trapState == 1) {
     trapState = setupTrap ();
   }
@@ -338,7 +341,12 @@ void loop () {
       while (s[0]->available () > 0) {
         s[0]->read ();
       }
-
+      //
+      // after printing a command output to the console, we definitely want
+      // to print the sender index again
+      //
+      firstMessage = true;
+      
       if (flagged) {
         s[0]->print ("buffer overflow. the command size limit is 2048 bytes\n");
       }
@@ -394,6 +402,10 @@ void loop () {
       }
     }
   }
+  //
+  // forwarding data between the two serial ports and simultaneously
+  // writing it to our console
+  //
   if (s[1]->available () > 0) {
     char currentByte = '\0';
 
@@ -412,6 +424,7 @@ void loop () {
       s[0]->write (currentByte);
     }
   }
+
   if (s[2]->available () > 0) {
     char currentByte = '\0';
 
