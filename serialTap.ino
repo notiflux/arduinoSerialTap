@@ -337,6 +337,7 @@ void loop () {
       // exited the read loop. this happens when there's a newline character
       // in the command string before EOL or when we receive more than 2048
       // bytes. We flush the pipeline and flag the command to prevent execution.
+      // in case of a buffer overflow, the command is already flagged.
       //
       while (s[0]->available () > 0) {
         s[0]->read ();
